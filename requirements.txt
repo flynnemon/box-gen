@@ -1,0 +1,5 @@
+manifold3d
+numpy
+trimesh
+cement
+tarfile
