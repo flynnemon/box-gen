@@ -61,12 +61,14 @@ class MyBaseController(Controller):
             # Create the tar.gz file in the archive directory
             output_filename = os.path.join(archive_dir, f'{file_basename}.tar.gz')
             create_tar_gz(output_filename, files_to_include)
+            for file in files_to_include:
+                shutil.move(file, archive_dir)
     
 def create_tar_gz(output_filename, files):
     with tarfile.open(output_filename, "w:gz") as tar:
         for file in files:
             tar.add(file, arcname=os.path.basename(file))
-            os.remove(file)  # Delete the file after adding it to the archive
+            # os.remove(file)  # Delete the file after adding it to the archive
         print(f"Created and archived {output_filename}")
 
 def create_full_box_with_lid(tmpdirname, internal_length, internal_width, internal_height, wall_thickness=2.0, lid_overlap=2.0, lid_height=5.0):
@@ -89,12 +91,23 @@ def create_full_box_with_lid(tmpdirname, internal_length, internal_width, intern
     # External dimensions for the lid, accounting for overlap
     lid_external_length = external_length + 2 * lid_overlap
     lid_external_width = external_width + 2 * lid_overlap
-    lid_total_height = lid_height + wall_thickness / 2  # Adjust if needed for fit
+    lid_total_height = lid_height  # Total height of the lid, no need to add wall thickness here for cavity creation
 
-    # Create and export the full lid
+    # Create the full lid outer part
     lid_outer = trimesh.creation.box((lid_external_length, lid_external_width, lid_total_height))
-    lid_outer.apply_translation((2, 2, base_height - wall_thickness + 2))
-    lid_outer.export(os.path.join(tmpdirname, lid_filename))
+
+    # Dimensions for the inner cavity of the lid, matching the external dimensions of the base for a snug fit
+    lid_inner_length = external_length + 0.15 # Same as base external length for snug fit
+    lid_inner_width = external_width + 0.15 # Same as base external width for snug fit 
+    lid_inner_height = lid_height - (wall_thickness / 2)  # Height of the cavity inside the lid
+
+    # Create the cavity inside the lid by subtracting a box that matches the outer dimensions of the base
+    lid_inner = trimesh.creation.box((lid_inner_length, lid_inner_width, lid_inner_height))
+    lid_inner.apply_translation((lid_overlap - 2, lid_overlap - 2, wall_thickness / 2))  # Position the inner lid cavity correctly within the outer lid
+
+    # Subtract the inner lid from the outer lid to create the lid with cavity
+    box_lid = lid_outer.difference(lid_inner)
+    box_lid.export(os.path.join(tmpdirname, lid_filename))
 
     # Print paths of the exported files
     print(f"Exported box base to {os.path.join(tmpdirname, base_filename)}")
